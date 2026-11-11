@@ -95,6 +95,12 @@ button:active{opacity:.75}
 #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 12px);transform:translate(-50%,-140%);transition:transform .25s;background:var(--card2);border:1px solid var(--line);padding:10px 16px;border-radius:999px;font-weight:650;z-index:9;white-space:nowrap}
 #toast.show{transform:translate(-50%,0)}
 .install{border-style:dashed}
+.howto{background:color-mix(in srgb,var(--gym) 18%,transparent);color:var(--gym);border-radius:999px;padding:7px 12px}
+.howto.on{background:var(--card2);color:var(--mute)}
+.guide{display:grid;grid-template-columns:118px 1fr;gap:12px;align-items:center;background:var(--card2);border-radius:14px;padding:10px;margin:10px 0 4px}
+.gsvg{width:118px;height:118px;color:var(--text);display:block}
+.guide ol{margin:0;padding-left:18px;font-size:13px;line-height:1.35}
+.guide li{margin-bottom:5px}
 </style>
 </head>
 <body>
@@ -147,7 +153,7 @@ const color=t=>t.type==='run'?'var(--run)':t.type==='gym'?'var(--gym)':'var(--re
 const typeLabel=t=>t.type==='run'?'Run':t.type==='gym'?'Gym':'Recovery';
 const tplOf=id=>S.tpl[id]||{type:'rest',name:'Removed session',cue:''};
 
-const UI={tab:'today',date:today(),pick:{},drafts:{},timerEnd:0};
+const UI={tab:'today',date:today(),pick:{},drafts:{},timerEnd:0,guide:{}};
 
 const plannedFor=d=>S.plan[fromIso(d).getDay()];
 const activeTpl=d=>UI.pick[d]||plannedFor(d);
@@ -216,8 +222,9 @@ function gymEditor(d,tid){
   const vol=l.ex.reduce((a,e)=>a+e.sets.filter(s=>s.done).reduce((b,s)=>b+num(s.w)*num(s.r),0),0);
   let h=`<div class="card"><div class="row between small"><span><b>${dn}</b><span class="mute"> / ${all} sets</span></span><span><b>${Math.round(vol).toLocaleString()}</b><span class="mute"> kg volume</span></span></div><div class="bar"><i style="width:${all?dn/all*100:0}%"></i></div><div class="mute small">Grey numbers are last session's weights, or the suggested jump. Tap ✓ to accept them.</div></div>`;
   l.ex.forEach((e,i)=>{
-    const last=lastEx(e.n,d),sug=suggest(e,last);
-    h+=`<div class="card"><div class="row between"><div><div class="exn">${esc(e.n)}</div><div class="mute small">${e.s} × ${e.lo}–${e.hi} reps</div></div><button class="icon sm" data-act="delex" data-ex="${i}">✕</button></div>
+    const last=lastEx(e.n,d),sug=suggest(e,last),gk=guideKey(e.n),gOpen=!!UI.guide[d+'|'+tid+'|'+i];
+    h+=`<div class="card"><div class="row between"><div><div class="exn">${esc(e.n)}</div><div class="mute small">${e.s} × ${e.lo}–${e.hi} reps</div></div><div class="row" style="gap:4px">${gk?`<button class="sm howto ${gOpen?'on':''}" data-act="guide" data-ex="${i}">${gOpen?'Hide':'▶ How to'}</button>`:''}<button class="icon sm" data-act="delex" data-ex="${i}">✕</button></div></div>
+    ${gk&&gOpen?`<div class="guide"><svg class="gsvg" data-g="${gk}" viewBox="0 -6 100 102">${drawPose(GUIDES[gk],0)}</svg><ol>${GUIDES[gk].cues.map(c=>`<li>${esc(c)}</li>`).join('')}</ol></div>`:''}
     <div class="last small">${last.length?'Last: '+last.map(s=>`${s.w||0}×${s.r||0}`).join(', '):'No history yet, pick a weight you can do for '+e.hi+' clean reps'}${sug?` · <span class="good">${sug.txt}</span>`:''}</div>
     <div class="sethead"><span>#</span><span>kg</span><span>reps</span><span></span></div>`;
     e.sets.forEach((s,j)=>{
@@ -358,6 +365,7 @@ document.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');if(!b)return;
   const a=b.dataset.act,i=+b.dataset.ex,j=+b.dataset.set;
   switch(a){
+    case 'guide':{const k=UI.date+'|'+activeTpl(UI.date)+'|'+i;UI.guide[k]=!UI.guide[k];break}
     case 'tab':UI.tab=b.dataset.id;if(UI.tab==='today')UI.date=UI.date||today();window.scrollTo(0,0);break;
     case 'prev':UI.date=addDays(UI.date,-1);break;
     case 'next':UI.date=addDays(UI.date,1);break;
@@ -409,6 +417,82 @@ document.addEventListener('change',e=>{
   if(el.dataset.plan!==undefined){S.plan[+el.dataset.plan]=el.value;save();render()}
 });
 
+const EQ='#5d6676',PL='#5b8cff';
+const GUIDES={
+  bench:{m:['bench press','chest press'],cues:['Squeeze your shoulder blades together and keep both feet planted.','Lower the bar to mid-chest with elbows about 45° from your body.','Press up and slightly back until your arms are straight over your shoulders.'],
+    props:[['rect',18,61,46,4],['line',24,65,24,92],['line',58,65,58,92]],att:[['plate','w']],
+    A:{h:[22,55],n:[29,57],hp:[56,58],k:[70,60],f:[74,92],e:[30,44],w:[30,30]},B:{e:[38,64],w:[32,50]}},
+  incline:{m:['incline'],cues:['Set the bench to about 30–45° and keep your back flat on it.','Lower the dumbbells to upper-chest level, elbows slightly tucked.','Press up until the dumbbells nearly touch above your chest.'],
+    props:[['line',33,46,52,72,4],['rect',50,71,22,4],['line',62,75,62,92]],att:[['db','w']],
+    A:{h:[33,35],n:[37,42],hp:[56,68],k:[72,62],f:[74,92],e:[44,54],w:[50,42]},B:{e:[46,30],w:[47,17]}},
+  ohp:{m:['overhead press','shoulder press','military'],cues:['Squeeze glutes and brace your abs so your back doesn\'t arch.','Press the bar straight up, moving your head back slightly to clear it.','Finish with the bar over the middle of your feet, arms locked.'],
+    att:[['plate','w']],
+    A:{h:[49,23],n:[49,31],hp:[50,58],k:[50,75],f:[50,92],e:[60,42],w:[60,30]},B:{e:[55,19],w:[53,6]}},
+  lateral:{m:['lateral raise'],front:1,cues:['Slight bend in the elbows, light weight, no swinging.','Lift out to the sides until your arms are level with your shoulders.','Lower slowly over about 2 seconds.'],
+    att:[['db','w'],['db','w2']],
+    A:{h:[50,21],n:[50,29],hc:[50,58],s:[43,32],s2:[57,32],hp:[45,58],hp2:[55,58],k:[45,75],f:[44,92],k2:[55,75],f2:[56,92],e:[41,45],w:[40,57],e2:[59,45],w2:[60,57]},
+    B:{e:[34,33],w:[23,31],e2:[66,33],w2:[77,31]}},
+  pushdown:{m:['pushdown','triceps','tricep'],cues:['Pin your elbows to your sides. Only your forearms move.','Push down until your arms are fully straight and squeeze.','Let it come back up under control to about chest height.'],
+    props:[['line',70,-4,70,92,3]],att:[['cable','w',68,-3],['grip','w']],
+    A:{h:[55,25],n:[52,32],hp:[46,58],k:[48,75],f:[46,92],e:[51,50],w:[61,40]},B:{w:[53,66]}},
+  pulldown:{m:['pulldown','pull-up','pull up','chin'],cues:['Grip a little wider than your shoulders, chest up.','Pull your elbows down towards your ribs, bringing the bar to your upper chest.','Let the bar rise slowly until your arms are straight.'],
+    props:[['rect',40,68,20,4],['line',50,72,50,92],['rect',58,58,10,4]],att:[['cable','w',49,-6],['hbar','w',24]],
+    A:{h:[46,31],n:[46,39],hp:[48,66],k:[64,66],f:[64,92],e:[48,22],w:[49,8]},B:{e:[40,50],w:[51,38]}},
+  bbrow:{m:['barbell row','bent over row','bent-over row','db row','dumbbell row','pendlay'],cues:['Hinge at the hips to about 45°, flat back, knees soft.','Pull the bar to your lower ribs, driving your elbows back.','Lower under control without letting your back round.'],
+    att:[['plate','w']],
+    A:{h:[73,40],n:[66,44],hp:[40,57],k:[55,75],f:[50,92],e:[64,59],w:[64,73]},B:{e:[52,46],w:[58,60]}},
+  cablerow:{m:['cable row','seated row'],cues:['Sit tall with a slight knee bend and your chest up.','Pull the handle to your stomach, squeezing your shoulder blades together.','Reach forward slowly, letting your shoulders stretch without rounding.'],
+    props:[['rect',22,74,24,4],['line',70,66,72,82,3],['line',90,30,90,92,3]],att:[['cable','w',88,60],['grip','w']],
+    A:{h:[44,40],n:[42,47],hp:[34,72],k:[54,62],f:[68,74],e:[54,56],w:[66,58]},B:{h:[37,38],n:[36,46],e:[24,56],w:[40,58]}},
+  facepull:{m:['face pull'],cues:['Set the cable at head height and use a rope.','Pull towards your face, splitting the rope and driving your elbows high and back.','Pause for a second, then return slowly.'],
+    props:[['line',92,-4,92,92,3]],att:[['cable','w',90,22],['grip','w']],
+    A:{h:[40,24],n:[40,31],hp:[40,58],k:[41,75],f:[40,92],e:[54,30],w:[68,26]},B:{e:[33,27],w:[45,21]}},
+  curl:{m:['curl'],cues:['Stand tall with your elbows fixed at your sides.','Curl up without swinging your body, then squeeze at the top.','Lower all the way down slowly.'],
+    att:[['db','w']],
+    A:{h:[50,23],n:[50,31],hp:[50,58],k:[50,75],f:[50,92],e:[50,47],w:[52,62]},B:{w:[58,35]}},
+  split:{m:['split squat','bulgarian','lunge'],cues:['Rear foot laces-down on the bench, front foot far enough forward.','Drop straight down until your back knee nearly touches the floor.','Drive up through your front heel and keep your torso tall.'],
+    props:[['rect',10,62,20,4],['line',20,66,20,92]],att:[['db','w']],
+    A:{h:[47,22],n:[47,30],hp:[46,56],k:[60,74],f:[62,92],k2:[36,74],f2:[24,62],e:[48,44],w:[49,58]},
+    B:{h:[46,36],n:[46,44],hp:[44,70],k:[66,72],k2:[34,86],e:[47,58],w:[48,72]}},
+  squat:{m:['squat'],cues:['Bar on your upper back, feet shoulder-width, brace before each rep.','Sit down and back until your hips are at or just below knee height.','Push the floor away and keep your chest up all the way.'],
+    att:[['plate','n',7,-8,1]],
+    A:{h:[51,23],n:[50,31],hp:[47,58],k:[51,75],f:[50,92],e:[40,40],w:[46,32]},B:{h:[56,38],n:[52,45],hp:[32,70],k:[58,72],e:[42,54],w:[48,46]}},
+  rdl:{m:['romanian','rdl','deadlift'],cues:['Soft knees, then push your hips back like closing a car door with them.','Keep the bar close to your legs and your back flat.','Stop when you feel a strong hamstring stretch, then drive your hips forward.'],
+    att:[['plate','w']],
+    A:{h:[51,23],n:[50,31],hp:[48,58],k:[50,75],f:[50,92],e:[51,46],w:[52,60]},B:{h:[71,40],n:[64,44],hp:[38,56],k:[52,76],e:[63,58],w:[61,72]}},
+  calf:{m:['calf'],cues:['Stand on a step with only the balls of your feet on it.','Lower your heels for a full stretch, pausing at the bottom.','Rise as high as you can and squeeze for a second.'],
+    props:[['rect',54,88,22,5]],att:[['db','w']],
+    A:{h:[50,21],n:[50,29],hp:[50,56],k:[50,73],f:[49,92],t:[60,88],e:[50,44],w:[51,58]},B:{h:[50,13],n:[50,21],hp:[50,48],k:[51,64],f:[52,81],e:[50,36],w:[51,50]}},
+  legraise:{m:['leg raise','knee raise'],cues:['Hang from the bar with your shoulders engaged, not fully relaxed.','Raise your legs to hip height by curling your pelvis up, without swinging.','Lower slowly to a dead stop before the next rep.'],
+    props:[['line',30,-3,72,-3,3]],
+    A:{w:[50,-2],e:[50,9],h:[54,18],n:[50,24],hp:[50,52],k:[50,70],f:[50,88]},B:{k:[64,54],f:[82,50]}}
+};
+function guideKey(name){const n=(name||'').toLowerCase();for(const k in GUIDES)if(GUIDES[k].m.some(m=>n.includes(m)))return k;return null}
+function drawPose(g,t){
+  const P={};for(const k in g.A){const a=g.A[k],b=(g.B&&g.B[k])||a;P[k]=[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]}
+  const f=v=>v.toFixed(1);
+  const L=(a,b,w,o)=>a&&b?`<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" stroke-width="${w}"${o?` opacity="${o}"`:''}/>`:'';
+  let s=`<line x1="0" y1="93" x2="100" y2="93" stroke="${EQ}" stroke-width="1.2"/>`;
+  s+=`<g stroke="${EQ}" fill="${EQ}" stroke-linecap="round">`+(g.props||[]).map(p=>p[0]==='rect'?`<rect x="${p[1]}" y="${p[2]}" width="${p[3]}" height="${p[4]}" rx="1.5" stroke="none"/>`:`<line x1="${p[1]}" y1="${p[2]}" x2="${p[3]}" y2="${p[4]}" stroke-width="${p[5]||2.5}"/>`).join('')+'</g>';
+  const att=g.att||[];
+  att.filter(a=>a[0]==='cable').forEach(a=>{const p=P[a[1]];s+=`<line x1="${a[2]}" y1="${a[3]}" x2="${f(p[0])}" y2="${f(p[1])}" stroke="${EQ}" stroke-width="1"/>`});
+  const o=g.front?0:.45,sh=P.s||P.n,sh2=P.s2||P.n,hip2=P.hp2||P.hp;
+  s+=`<g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" fill="none">`;
+  s+=L(hip2,P.k2,4.5,o)+L(P.k2,P.f2,4,o)+L(sh2,P.e2,4,o)+L(P.e2,P.w2,3.5,o);
+  s+=L(P.n,P.hc||P.hp,6)+(P.s?L(P.s,P.s2,4):'')+(P.hp2?L(P.hp,P.hp2,4):'');
+  s+=L(P.hp,P.k,4.5)+L(P.k,P.f,4)+L(P.f,P.t,3)+L(sh,P.e,4)+L(P.e,P.w,3.5)+'</g>';
+  s+=`<circle cx="${f(P.h[0])}" cy="${f(P.h[1])}" r="5.5" fill="currentColor"/>`;
+  att.forEach(a=>{const p=P[a[1]];if(!p)return;const x=p[0]+(a[3]||0),y=p[1]+(a[4]||0);
+    if(a[0]==='plate')s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${a[2]||7.5}" fill="${PL}" opacity=".9"/><circle cx="${f(x)}" cy="${f(y)}" r="1.6" fill="#0b0d10"/>`;
+    else if(a[0]==='db')s+=`<rect x="${f(x-6)}" y="${f(y-1.2)}" width="12" height="2.4" fill="${EQ}"/><rect x="${f(x-7)}" y="${f(y-3.5)}" width="3.5" height="7" rx="1" fill="${PL}"/><rect x="${f(x+3.5)}" y="${f(y-3.5)}" width="3.5" height="7" rx="1" fill="${PL}"/>`;
+    else if(a[0]==='hbar')s+=`<line x1="${f(x-a[2]/2)}" y1="${f(y)}" x2="${f(x+a[2]/2)}" y2="${f(y)}" stroke="${PL}" stroke-width="2.5" stroke-linecap="round"/>`;
+    else if(a[0]==='grip')s+=`<circle cx="${f(x)}" cy="${f(y)}" r="2.6" fill="${PL}"/>`;
+  });
+  return s;
+}
+
+function animGuides(ts){const t=(1-Math.cos((ts/2800%1)*2*Math.PI))/2;document.querySelectorAll('.gsvg').forEach(s=>{const g=GUIDES[s.dataset.g];if(g)s.innerHTML=drawPose(g,t)});requestAnimationFrame(animGuides)}
+requestAnimationFrame(animGuides);
 let timerInt=null;
 function startTimer(s){UI.timerEnd=Date.now()+s*1000;$('#timer').hidden=false;clearInterval(timerInt);timerInt=setInterval(tickTimer,500);tickTimer()}
 function tickTimer(){const left=Math.max(0,Math.round((UI.timerEnd-Date.now())/1000));$('#tleft').textContent=fmtTime(left);if(!left){$('#tleft').textContent='Go!';clearInterval(timerInt);setTimeout(()=>{if(Date.now()>=UI.timerEnd)$('#timer').hidden=true},4000)}}
